@@ -1,0 +1,46 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    
+    repositories {
+        // Required: AGP (com.android.tools.build) and all AndroidX artifacts are
+        // published only on Google's Maven index; Maven Central has no copies.
+        google()
+        mavenCentral()
+        // CycloneDX SBOM plugin 2.x/3.x ships only on the Gradle Plugin
+        // Portal; Maven Central is stuck on the 1.4.0 line.
+        maven { url 'https://plugins.gradle.org/m2/' }
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:9.5.1'
+        classpath 'org.cyclonedx.bom:org.cyclonedx.bom.gradle.plugin:3.6.1'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+// CycloneDX SBOM: `./gradlew cyclonedxBom` -> build/reports/cyclonedx/bom.{json,xml}
+// (aggregate over all projects; each project also gets cyclonedxDirectBom under
+// build/reports/cyclonedx-direct/). The release workflow publishes the JSON
+// aggregate as a release artifact.
+apply plugin: 'org.cyclonedx.bom'
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    tasks.named('cyclonedxDirectBom') {
+        // Only the release runtime classpath: what actually ships in the APK.
+        includeConfigs = ['releaseRuntimeClasspath']
+        failOnUnresolvedDependencies = true
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

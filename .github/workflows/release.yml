@@ -1,0 +1,148 @@
+name: Release
+
+# Builds a signed release APK and publishes a GitHub release with it.
+# Trigger: push a semver tag (git tag -a v1.0.1 -m ... && git push origin v1.0.1).
+# Requires repo secrets: KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and publish (e.g. v1.0.1)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Resolve tag and validate versionName agreement
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          TAG="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+            echo "::error::Tag '$TAG' is not a release tag (expected vX.Y.Z or vX.Y.Z-prerelease, e.g. v1.0.1, v1.0.0-rc.0)"
+            exit 1
+          fi
+          VERSION="${BASH_REMATCH[1]}"
+          BUILD_VERSION=$(grep -oP 'versionName "\K[^"]+' android/app/build.gradle)
+          if [ "$VERSION" != "$BUILD_VERSION" ]; then
+            echo "::error::Tag says v$VERSION but android/app/build.gradle versionName is $BUILD_VERSION - bump both before releasing"
+            exit 1
+          fi
+          NODE_VERSION=$(grep -oP '"version": "\K[^"]+' package.json)
+          if [ "$VERSION" != "$NODE_VERSION" ]; then
+            echo "::error::Tag says v$VERSION but package.json version is $NODE_VERSION - bump both before releasing"
+            exit 1
+          fi
+          {
+            echo "TAG=$TAG"
+            echo "VERSION=$VERSION"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+
+      - name: Install build-tools required by AGP 9.5
+        # Runner images ship build-tools 35; AGP 9.5 requires 36.0.0 minimum.
+        # `android sdk install` is the modern replacement for the deprecated
+        # sdkmanager; --no-metrics keeps CI hosts from sending usage data.
+        run: yes | android --no-metrics sdk install "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      - name: Decode keystore and write signing config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Missing KEYSTORE_BASE64 secret - refusing to ship an unsigned release"
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/meningspunktet.keystore
+          {
+            echo "storeFile=meningspunktet.keystore"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/keystore.properties
+
+      - name: Build signed release APK and SBOM
+        # cyclonedxBom writes build/reports/cyclonedx/bom.json (aggregate
+        # CycloneDX 1.6 over releaseRuntimeClasspath - see android/build.gradle).
+        run: (cd android && ./gradlew assembleRelease cyclonedxBom)
+
+      - name: Verify APK signature matches the release key
+        run: |
+          EXPECTED=c0e9e78bf3cceccac0358e3173e05c211dad2e588b70d843fce3e2e537216e93
+          # Pick the newest installed build-tools explicitly; a bare glob
+          # expands to multiple paths and apksigner eats the second one as
+          # a subcommand ("Unsupported command").
+          APKSIGNER=$(ls -v "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
+          ACTUAL=$("$APKSIGNER" verify --print-certs \
+            android/app/build/outputs/apk/release/app-release.apk \
+            | sed -n 's/.*certificate SHA-256 digest: //p')
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "::error::APK signed with unknown key: $ACTUAL"
+            exit 1
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mv android/app/build/outputs/apk/release/app-release.apk \
+             "unofficial-meningspunktet_${VERSION}.apk"
+          # Stable filename so /releases/latest/download/... always resolves.
+          cp "unofficial-meningspunktet_${VERSION}.apk" \
+             unofficial-meningspunktet-latest.apk
+          # CycloneDX SBOM (JSON) of everything that ships in the APK.
+          mv android/build/reports/cyclonedx/bom.json \
+             "unofficial-meningspunktet_${VERSION}-sbom.json"
+          # Transit-integrity checksums for mirrors and download verification.
+          # Authorship is proven by the APK signature itself (apksigner verify
+          # --print-certs must show the release key), not by this file.
+          sha256sum "unofficial-meningspunktet_${VERSION}.apk" \
+                    unofficial-meningspunktet-latest.apk \
+                    "unofficial-meningspunktet_${VERSION}-sbom.json" > SHA256SUMS
+          {
+            echo "Sideload the APK and verify it:"
+            echo
+            echo '```'
+            cat SHA256SUMS
+            echo "sha256:  $(head -1 SHA256SUMS | awk '{print $1}')"
+            echo "signer:  c0e9e78bf3cceccac0358e3173e05c211dad2e588b70d843fce3e2e537216e93 (SHA-256 of release cert)"
+            echo '```'
+            echo
+            echo "Verify signature: apksigner verify --print-certs unofficial-meningspunktet_${VERSION}.apk"
+          } > notes.md
+          # rc/alpha/beta tags publish as GitHub prereleases so /releases/latest/
+          # keeps resolving to the newest stable version.
+          PRERELEASE=()
+          if [[ "$VERSION" == *-* ]]; then PRERELEASE=(--prerelease); fi
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file notes.md \
+            --verify-tag "${PRERELEASE[@]}" \
+            "unofficial-meningspunktet_${VERSION}.apk" \
+            unofficial-meningspunktet-latest.apk \
+            "unofficial-meningspunktet_${VERSION}-sbom.json" \
+            SHA256SUMS

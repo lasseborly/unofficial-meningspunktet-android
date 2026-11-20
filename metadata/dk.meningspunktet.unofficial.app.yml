@@ -1,0 +1,53 @@
+Categories:
+  - Internet
+License: EUPL-1.2
+AuthorName: Lasse Borly Grønbæk
+AuthorEmail: lasse@trylleskov.email
+AuthorWebSite: https://github.com/lasseborly
+WebSite: https://meningspunktet.dk
+SourceCode: https://github.com/lasseborly/unofficial-meningspunktet-android
+IssueTracker: https://github.com/lasseborly/unofficial-meningspunktet-android/issues
+
+AutoName: Meningspunktet (unofficial)
+
+Summary: Unofficial Meningspunktet client with notifications and no push servers
+
+Description: |-
+  Unofficial Android client for the Danish discussion site meningspunktet.dk.
+  Not made or endorsed by Meningspunktet.
+
+  The app wraps the live website in a WebView, so login, cookies and navigation
+  behave exactly like the browser. On top of that it delivers native
+  notifications for new site notifications and conversation messages.
+
+  Notifications are deliberately not based on Firebase/FCM, Apple Push or
+  Mozilla Push: a foreground service polls meningspunktet.dk directly with your
+  own session cookie, so no Google, Apple or Mozilla server is ever in the path.
+  The tradeoff is a modest battery cost for the per-minute polling. Because it
+  needs no Google Play services, it also works on GrapheneOS and other
+  de-Googled devices, where FCM-based apps receive nothing.
+
+  Releases are sideloaded APKs signed with a self-signed key; there is no
+  in-app update mechanism yet.
+
+AntiFeatures:
+  NonFreeNet:
+    en: This app talks to meningspunktet.dk, whose website, API and content are proprietary.
+
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: v1.0.0
+    output: android/app/build/outputs/apk/release/app-release-unsigned.apk
+    build:
+      - (cd android && ./gradlew assembleRelease)
+
+MaintainerNotes: |-
+  Unsigned release output: keystore.properties is gitignored, so the builder
+  signs with the F-Droid key. The APK loads https://meningspunktet.dk directly
+  (MainActivity hard-codes the start URL); a green HTTPS lock is expected.
+  Plain Android WebView app - no npm/Node step and no splash. targetSdk 36
+  edge-to-edge; MainActivity pads the WebView top/left/right with system-bar +
+  cutout insets (zeroed before the insets reach the WebView so the site's CSS
+  never double-pads) and paints that strip #18181b; the bottom inset passes
+  through to the page's env(safe-area-inset-bottom) CSS.

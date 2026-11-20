@@ -1,0 +1,36 @@
+# --- Node / Capacitor ---
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# --- Android / Gradle ---
+.gradle/
+local.properties
+android/build/
+android/app/build/
+build/
+captures/
+.cxx/
+*.iml
+.idea/
+.kotlin/
+
+# --- Signing: losing these forces uninstall/reinstall; leaking them is worse ---
+*.keystore
+*.jks
+keystore.properties
+
+# --- Build artifacts / binaries ---
+*.apk
+*.aab
+meningspunktet-release.apk
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# --- Local environment ---
+.env
+.env.*
