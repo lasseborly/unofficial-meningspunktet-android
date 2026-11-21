@@ -29,10 +29,14 @@ for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
   convert /tmp/rd_$$.png \( /tmp/lg_$$.png \) -gravity center \
           -composite -background none -strip "$dir/ic_launcher_round.png"
 
-  # Adaptive foreground: transparent 108dp canvas; logo at 55% of the canvas
-  # sits inside the 66/108 safe zone the launcher masks with.
-  logo $(( fg * 55 / 100 )) "$dir/ic_launcher_foreground.png"
+  # Adaptive foreground: transparent 108dp canvas (fg px); logo at 55% of the
+  # canvas sits inside the 66/108 safe zone the launcher masks with. The PNG
+  # must be the full canvas size - a smaller bitmap gets scaled up by the
+  # launcher, zooming and cropping the logo.
+  logo $(( fg * 55 / 100 )) /tmp/fg_$$.png
+  convert -size "${fg}x${fg}" xc:none /tmp/fg_$$.png -gravity center \
+          -composite -strip "$dir/ic_launcher_foreground.png"
 done
-rm -f /tmp/lg_$$.png /tmp/rd_$$.png
+rm -f /tmp/lg_$$.png /tmp/rd_$$.png /tmp/fg_$$.png
 
 echo "launcher icons generated"
