@@ -47,9 +47,11 @@ and the bus in one product.
   event ids and counters, never bodies. On any connect or event, the client
   fetches changed items by cursor. Duplicate or missed events cost a deduped or
   slightly delayed notification, never lost data.
-- **D2 — MQTT QoS 1, persistent session, short expiry.** The broker queues
-  messages while the device is in Doze (SSE cannot do this); expiry is capped at
-  ~60 s so the backlog never becomes a second source of truth.
+- **D2 — MQTT QoS 1, persistent session, bounded queues.** The broker queues
+  messages while the device is in Doze (SSE cannot do this); per-message expiry
+  is capped at ~60 s and the per-session queue depth is capped, so the backlog
+  never becomes a second source of truth. The **session** (subscriptions and
+  state) is long-lived, not the messages.
 - **D3 — One topic per user** (`meningspunktet/user/<id>`). Topic-based routing is
   exact: the broker delivers only to sessions subscribed to that topic — no shard
   map, no broadcast-and-filter.
@@ -61,9 +63,10 @@ and the bus in one product.
   prefix; the broker does no database lookups.
 - **D6 — Redis holds hot state** (counters, presence, auth cache, last ~50
   events per user). 304 responses and unread snapshots never touch MySQL.
-- **D7 — Reconnects**: jittered exponential backoff; session expiry ≥ reconnect
-  horizon so Doze gaps keep the session; when the connection is down the client
-  falls back to adaptive polling instead of sitting silent.
+- **D7 — Reconnects**: jittered exponential backoff; the **session** (not the
+  queued messages, which expire per D2) survives reconnect gaps so a Doze nap
+  does not lose subscriptions; when the connection is down the client falls back
+  to adaptive polling instead of sitting silent.
 - **D8 — Idle cost is a PINGREQ every ~60 s** (2 bytes), cheaper than SSE's HTTP
   heartbeats; connection survives IP changes (Wi-Fi ↔ cellular) without losing
   the session.
@@ -233,7 +236,7 @@ handshake peaks add a few hundred Mbit/s.
 |---|---|---|
 | Broker node down | sessions reconnect to another node; persistent sessions survive on clustered brokers | none (seconds) |
 | Broker cluster down | clients poll adaptively | R1 violated until fixed |
-| Doze / OEM battery saver | socket dropped; client reconnects; broker may still hold the queued event (D2) | seconds to minutes on aggressive OEMs; recommend battery-optimization exemption |
+| Doze / OEM battery saver | socket dropped; client reconnects and re-subscribes (D7); events older than the 60 s expiry are gone but recovered by catch-up (D1) | seconds to minutes on aggressive OEMs; recommend battery-optimization exemption |
 | Broker overloaded | new connections queue; existing hold | drain/jitter; add nodes (R4) |
 | MySQL slow | 304s unaffected (Redis); catch-up slower | still < 15 s unless DB is broken |
 
