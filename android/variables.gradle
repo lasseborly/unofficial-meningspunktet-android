@@ -1,9 +1,9 @@
 ext {
     minSdkVersion = 24
-    compileSdkVersion = 36
+    compileSdkVersion = 37
     // Target 36: edge-to-edge is enforced on Android 15+; MainActivity paints
     // the #18181b status-bar strip itself (statusBarColor is ignored there).
     targetSdkVersion = 36
-    androidxActivityVersion = '1.11.0'
-    androidxCoreVersion = '1.17.0'
+    androidxActivityVersion = '1.13.0'
+    androidxCoreVersion = '1.19.1'
 }

@@ -942,7 +942,12 @@ public class NotificationPollerService extends Service {
                 b.setLargeIcon(avatar);
             }
             Notification n = b.build();
-            NotificationManagerCompat.from(this).notify(id.hashCode(), n); // lint: POST_NOTIFICATIONS may be denied; NotificationManagerCompat then no-ops, it does not throw
+            // NotificationManagerCompat.notify() no-ops (does not throw) when
+            // POST_NOTIFICATIONS is denied. The check below is lint-honesty;
+            // MainActivity owns the runtime prompt.
+            if (NotificationManagerCompat.from(this).areNotificationsEnabled()) {
+                NotificationManagerCompat.from(this).notify(id.hashCode(), n);
+            }
         } catch (Exception e) {
             Log.w(TAG, "notify failed: " + e);
         }
