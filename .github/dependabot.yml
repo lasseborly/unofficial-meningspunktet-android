@@ -5,6 +5,12 @@ updates:
   # the pin and the version comment; review it like any code change.
   - package-ecosystem: github-actions
     directory: /
+    # init and analyze must run the same github/codeql-action version; separate
+    # PRs produce a mixed-version workflow that fails at runtime.
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
     schedule:
       interval: weekly
 
