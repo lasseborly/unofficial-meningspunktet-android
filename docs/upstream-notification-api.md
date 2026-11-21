@@ -257,7 +257,7 @@ VPS. Heartbeats at 5M are ~7 MB/s; handshake peaks add a few hundred Mbit/s.
 | Long-polling | one request per hold regardless; 200k req/s at 5M with a 25 s hold |
 | Kafka | does not hold connections; a cluster to operate; only worth it as a general event platform |
 | MQTT broker | meets R1, but a second protocol and a persistent-session backlog that competes with the API as source of truth |
-| UnifiedPush / ntfy | meets R1 too, at the cost of depending on the user's chosen distributor; worth supporting client-side later |
+| UnifiedPush / ntfy | meets R1 with zero infrastructure, but delivery requires a second (distributor) app on the device - ruled out. Embedding a distributor collapses back into holding sockets yourself |
 | Web Push | relays through the browser vendor's push service (FCM/Mozilla); fails R2 |
 
 ## Sequencing
