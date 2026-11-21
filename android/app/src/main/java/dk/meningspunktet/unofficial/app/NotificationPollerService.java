@@ -76,6 +76,7 @@ public class NotificationPollerService extends Service {
     // v2: first seed now notifies for unread items; bumping the key re-seeds once on upgrade.
     private static final String KEY_SEEN = "seen_ids_v2";
     private static final String KEY_CONV_SEEN = "conv_seen_v5"; // bump to re-seed once per body-source fix
+    private static final String KEY_MY_USER_ID = "my_user_id";
 
     private HandlerThread thread;
     private Handler work;
@@ -122,6 +123,9 @@ public class NotificationPollerService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        debugBuild = (getApplicationInfo().flags
+            & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        myUserId = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_MY_USER_ID, 0);
         createChannels();
         thread = new HandlerThread("MpPoller");
         thread.start();
@@ -336,6 +340,8 @@ public class NotificationPollerService extends Service {
         JSONObject me = auth != null ? auth.optJSONObject("user") : null;
         if (me != null && me.optInt("id", 0) > 0) {
             myUserId = me.optInt("id");
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putInt(KEY_MY_USER_ID, myUserId).apply();
             JSONObject avatar = me.optJSONObject("avatar");
             myAvatarFileId = avatar != null ? pick(avatar, "id") : null;
         }
@@ -422,6 +428,13 @@ public class NotificationPollerService extends Service {
             Log.w(TAG, "no conversations array; keys=" + joinKeys(root));
             return;
         }
+        // Without our own user id we cannot tell our messages from inbound ones, and
+        // the one thing this poller must never do is notify about our own text.
+        // myUserId comes from the /notifications props and is cached in prefs.
+        if (myUserId == 0) {
+            Log.w(TAG, "own user id unknown; skipping conversation alerts this round");
+            return;
+        }
         // Flatten to one synthetic alert item per conversation with its newest message.
         JSONArray flat = new JSONArray();
         for (int i = 0; i < convs.length(); i++) {
@@ -434,20 +447,34 @@ public class NotificationPollerService extends Service {
             if (last == null || uuid.isEmpty()) {
                 continue;
             }
-            // Three unread signals, in descending reliability:
+            // Never alert for a message we wrote. Sending a reply changes
+            // lastMessage.id, so without this check every message we send mints a
+            // new alert id and notifies us back with our own text. Only a reply
+            // that arrived after our message can still be news.
+            boolean mine = messageAuthorId(last) == myUserId;
+            if (mine) {
+                String lastAt = pickOrDefault(last, "", "createdAt", "created_at");
+                String replyAt = pickOrDefault(last, "", "lastReplyAt");
+                if (replyAt.isEmpty() || (!lastAt.isEmpty() && replyAt.compareTo(lastAt) <= 0)) {
+                    continue;
+                }
+            }
+            // Unread signals, in descending reliability:
             //  lastMessage.isUnread - the newest message itself is inbound & unread:
             //    its body is safe to show (it IS the message being notified about).
             //  hasUnreadReplies / hasUnreadMessages - unread exists somewhere in the
             //    thread tree, but the list endpoint doesn't inline that text and
-            //    lastMessage may be anyone's (yours, or an older read one). Then we
-            //    must NOT show lastMessage.body (it would be a false quote) - use a
-            //    generic line and let name + avatar carry it.
-            boolean lastUnread = last.optBoolean("isUnread");
+            //    lastMessage may be an older read one. Then we must NOT show
+            //    lastMessage.body (it would be a false quote) - use a generic line
+            //    and let name + avatar carry it.
+            boolean lastUnread = last.optBoolean("isUnread") && !mine;
             boolean deliver = lastUnread
                 || conv.optBoolean("hasUnreadReplies")
                 || conv.optBoolean("hasUnreadMessages");
             JSONObject alert = new JSONObject();
-            String lastId = String.valueOf(last.opt("id"));
+            // "self" keeps the id stable across our own sends; a newer reply still
+            // changes the reply stamp below and re-alerts.
+            String lastId = mine ? "self" : String.valueOf(last.opt("id"));
             // Reply-only updates leave lastMessage.id untouched; fold the surfaced
             // reply fields in so a newer reply re-alerts instead of collapsing.
             String replyStamp = conv.optBoolean("hasUnreadReplies")
@@ -609,9 +636,10 @@ public class NotificationPollerService extends Service {
             if (body == null) {
                 continue;
             }
-            JSONObject user = m.optJSONObject("user");
-            int uid = user != null ? user.optInt("id", -1) : m.optInt("userId", -1);
-            if (myUserId != 0 && uid == myUserId) {
+            // Only quote messages we can positively attribute to someone else.
+            // An unknown author might be us, and we never notify about our own text.
+            int uid = messageAuthorId(m);
+            if (uid <= 0 || uid == myUserId) {
                 continue;
             }
             String at = pickOrDefault(m, "", "createdAt", "created_at");
@@ -624,6 +652,25 @@ public class NotificationPollerService extends Service {
             }
         }
         return new String[] { best, bestAt };
+    }
+
+    /**
+     * Author id of a message/notification object, or -1 when the payload does not
+     * expose one (user.id relation, then camel/snake scalar ids).
+     */
+    private static int messageAuthorId(JSONObject m) {
+        JSONObject user = m.optJSONObject("user");
+        if (user != null) {
+            int id = user.optInt("id", -1);
+            if (id > 0) {
+                return id;
+            }
+        }
+        int id = m.optInt("userId", -1);
+        if (id > 0) {
+            return id;
+        }
+        return m.optInt("user_id", -1);
     }
 
     private static String xsrfFrom(String cookie) throws Exception {
