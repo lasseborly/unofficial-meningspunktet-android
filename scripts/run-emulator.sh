@@ -16,7 +16,9 @@ adb wait-for-device
 until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do sleep 2; done
 # Guest DNS lags boot; launching before it resolves shows "Webpage not available"
 # (ERR_NAME_NOT_RESOLVED) which the WebView keeps until app restart.
-until adb shell ping -c1 -W2 meningspunktet.dk >/dev/null 2>&1; do sleep 2; done
+# Check resolution, not ping success: many hosts (including this one) drop ICMP
+# while still resolving and serving TCP, which made a `ping -c1` gate hang forever.
+until adb shell ping -c1 -W2 meningspunktet.dk 2>&1 | grep -q "meningspunktet.dk ("; do sleep 2; done
 echo "device booted, dns resolves"
 
 adb install -r "$APK"
