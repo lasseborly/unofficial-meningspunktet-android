@@ -27,7 +27,7 @@ flowchart LR
   B -->|persistent session, QoS 1| C[Android client<br/>embedded MQTT]
   C -->|catch-up: since cursor| P["/api/v1 catch-up"]
   P --> A
-  R[(Redis<br/>counters, presence)] -.-> P
+  R[(Redis<br/>counters, auth cache)] -.-> P
 ```
 
 | Component | Language | Role | Grows by |
@@ -35,7 +35,7 @@ flowchart LR
 | API | PHP (Laravel) | catch-up endpoint, token management, existing website | adding nodes behind the LB |
 | Outbox relay | Go or PHP CLI | publishes outbox rows to MQTT topics | adding workers |
 | Broker | EMQX (or Mosquitto/VerneMQ) | holds device connections, queues per session, fans out | adding broker nodes behind an LB |
-| Redis | Redis | unread counters, presence, auth cache, per-user hot feed | primary + replica |
+| Redis | Redis | unread counters, auth cache, per-user hot feed | primary + replica |
 | MySQL | MySQL | source of truth for content | read replicas; hot set in Redis |
 
 No custom gateway is written. The broker is the connection tier, the fan-out tier
@@ -60,9 +60,13 @@ and the bus in one product.
   publishing inside a transaction loses events on rollback.
 - **D5 — Auth via short-lived JWTs** minted by the API: the client presents a
   valid session or token, the API returns a JWT scoped to its `user/<id>` topic
-  prefix; the broker does no database lookups.
-- **D6 — Redis holds hot state** (counters, presence, auth cache, last ~50
-  events per user). 304 responses and unread snapshots never touch MySQL.
+  prefix; the broker does no database lookups. A client reconnecting after a long
+  Doze gap mints a fresh JWT from the API first (the API is reachable whenever
+  the broker is).
+- **D6 — Redis holds hot state** (counters, auth cache, last ~50 events per
+  user). 304 responses and unread snapshots never touch MySQL. Presence lives in
+  the broker session table, not in Redis; nobody needs to know where a device is
+  connected, only that the connection state changed.
 - **D7 — Reconnects**: jittered exponential backoff; the **session** (not the
   queued messages, which expire per D2) survives reconnect gaps so a Doze nap
   does not lose subscriptions; when the connection is down the client falls back
@@ -173,8 +177,9 @@ user's password.
 ### M5 — Client switch (this repository)
 
 - [ ] Embedded MQTT client (Paho/HiveMQ) inside the foreground service:
-      connect with JWT, subscribe own topic, jittered reconnect, dedupe by
-      event id
+      connect with JWT (re-mint from the API if expired, D5), subscribe own
+      topic, jittered reconnect capped so worst case stays within R1's 15 s,
+      dedupe by event id
 - [ ] On event or connect: catch-up fetch, then post notifications (existing
       own-message suppression applies)
 - [ ] Connection unavailable → keep the adaptive poll (60 s foreground / 5 min
