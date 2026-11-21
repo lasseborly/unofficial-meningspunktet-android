@@ -1,29 +1,32 @@
 version: 2
 
-# Monthly cadence, one grouped PR per ecosystem. Dependabot cannot combine
-# ecosystems into a single PR, so at most two PRs appear per month (one for
-# GitHub Actions, one for Gradle). Renovate is the only option that can put both
-# into one PR; this file deliberately stays on Dependabot.
+# One pull request a month for everything: a multi-ecosystem group spans both
+# ecosystems, so the GitHub Actions pins and the Gradle dependencies arrive
+# together instead of as separate PRs.
+multi-ecosystem-groups:
+  monthly:
+    schedule:
+      interval: monthly
+
 updates:
   - package-ecosystem: github-actions
     directory: /
-    schedule:
-      interval: monthly
-    groups:
-      # Every action bump in one PR. Grouping also keeps the CodeQL init and
-      # analyze steps on the same version, which they must be to run at all.
-      actions:
-        patterns:
-          - "*"
+    patterns:
+      - "*"
+    multi-ecosystem-group: monthly
+    # Only pick up a release once it has been out for two weeks. Grouping also
+    # keeps the CodeQL init and analyze steps on the same version, which they
+    # must be to run at all.
+    cooldown:
+      default-days: 14
 
   # AGP / CycloneDX plugin in android/build.gradle and the AndroidX versions in
   # android/variables.gradle. The app ships only the AndroidX/Kotlin runtime, so
   # security fixes there matter most.
   - package-ecosystem: gradle
     directory: /android
-    schedule:
-      interval: monthly
-    groups:
-      gradle:
-        patterns:
-          - "*"
+    patterns:
+      - "*"
+    multi-ecosystem-group: monthly
+    cooldown:
+      default-days: 14
