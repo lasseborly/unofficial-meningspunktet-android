@@ -34,7 +34,7 @@ flowchart LR
 |---|---|---|---|
 | API | PHP (Laravel) | catch-up endpoint, token management, existing website | adding pods behind the Service |
 | Outbox relay | Go or PHP CLI | publishes outbox rows to MQTT topics | adding worker replicas |
-| Broker | EMQX BSL (single node) or Mosquitto/VerneMQ (clustering) | holds device connections, queues per session, fans out | more broker nodes behind the LB |
+| Broker | VerneMQ (Apache 2.0) | holds device connections, queues per session, fans out, clusters across nodes | more broker nodes behind the LB |
 | Redis | Redis | unread counters, auth cache, per-user hot feed | primary + replica |
 | MySQL | MySQL | source of truth for content | read replicas; hot set in Redis |
 
@@ -56,17 +56,19 @@ but three MQTT-specific properties change how it must be deployed:
      that pod";
   3. an ingress that supports connection draining (Envoy/Traefik with long idle
      timeouts, ideally HTTP/3 at the edge for mobile handoff).
-- **Broker choice is license-bound: EMQX ≥ 5.9 is BSL 1.1 — free for a single
-  node only.** Clustering (and its automated session failover) requires a paid
-  EMQX license, so beyond one node the free options are Mosquitto or VerneMQ
-  clustering, or unclustered EMQX nodes behind a plain TCP load balancer with
-  sticky (non-anycast) assignment — each device session then belongs to one node
-  and reconnects elsewhere on failure. That variant still scales by adding
-  nodes (R4) but drops the "node down = zero user impact" property.
-- **Deploy the broker as a StatefulSet** (stable identity, per-pod persistent
-  storage for sessions/retained messages, headless Service). Mosquitto and
-  VerneMQ both want per-node identity and data; capacity numbers in the hardware
-  table below are per **pod**, not per node.
+- **Broker choice: VerneMQ, and the license is the reason.** EMQX ≥ 5.9 is
+  BSL 1.1 — free production use of a single node only, clustering is paid;
+  Mosquitto (EPL/EDL) is excellent for one node but has **no free clustering**
+  (shared HA is a Cedalo commercial feature). VerneMQ is Apache 2.0 with built-in
+  clustering: persistent sessions, queue migration on `vmq-admin cluster leave`,
+  and netsplit handling. It is Erlang-based — operations differ from a typical
+  Java/C stack, but no Erlang knowledge is required to run it.
+  The unclustered-EMQX-with-sticky-LB escape hatch exists but drops the
+  "node down = zero user impact" property.
+- **Deploy the broker as a StatefulSet** (stable identity, per-node data for
+  persistent sessions, headless Service); VerneMQ's cluster discovery and
+  `vmq-admin cluster join/leave` map cleanly onto it. Capacity numbers in the
+  hardware table below are per **pod**, not per node.
 - **Host-level kernel tuning is node-level**: `nofile`, `somaxconn`, SYN backlog
   and conntrack limits must be set on the *node* (DaemonSet or image defaults),
   not just the container; a pod inherits the node's stack.
@@ -188,9 +190,9 @@ items in one request; repeating the request returns `304` without a DB query.
 
 ### M3 — Broker
 
-- [ ] Broker: EMQX 5.x single node (BSL 1.1 free tier) to start; at clustering
-      scale use Mosquitto/VerneMQ (or buy EMQX) — see the license note in
-      Architecture
+- [ ] Broker: **VerneMQ** (Apache 2.0; the only free option here with built-in
+      multi-node clustering). EMQX ≥ 5.9 is BSL 1.1 (single-node only) and
+      Mosquitto has no free clustering — see the license note in Architecture
 - [ ] MQTT over TLS (8883); persistent sessions; `max_inflight` and queue caps
       consistent with D2
 - [ ] JWT auth: client connects with the API-minted token; ACL restricts
@@ -279,7 +281,7 @@ the NATS cluster of the SSE design, at ~3× the connection density). Heartbeats 
 
 | Failure | Behaviour | R1 impact |
 |---|---|---|
-| Broker node down | clustered broker (Mosquitto/VerneMQ): sessions reconnect and are restored; unclustered EMQX: clients reconnect to another node, sessions are rebuilt, pending queue content may be lost | none (clustered) / seconds (unclustered) |
+| Broker node down | VerneMQ cluster: sessions reconnect and are restored (or migrated via `vmq-admin cluster leave` for planned removal) | none (seconds) |
 | Broker cluster down | clients poll adaptively | R1 violated until fixed |
 | Doze / OEM battery saver | socket dropped; client reconnects and re-subscribes (D7); events older than the 60 s expiry are gone but recovered by catch-up (D1) | seconds to minutes on aggressive OEMs; recommend battery-optimization exemption |
 | Broker overloaded | new connections queue; existing hold | drain/jitter; add nodes (R4) |
