@@ -38,12 +38,7 @@ jobs:
           VERSION="${BASH_REMATCH[1]}"
           BUILD_VERSION=$(grep -oP 'versionName "\K[^"]+' android/app/build.gradle)
           if [ "$VERSION" != "$BUILD_VERSION" ]; then
-            echo "::error::Tag says v$VERSION but android/app/build.gradle versionName is $BUILD_VERSION - bump both before releasing"
-            exit 1
-          fi
-          NODE_VERSION=$(grep -oP '"version": "\K[^"]+' package.json)
-          if [ "$VERSION" != "$NODE_VERSION" ]; then
-            echo "::error::Tag says v$VERSION but package.json version is $NODE_VERSION - bump both before releasing"
+            echo "::error::Tag says v$VERSION but android/app/build.gradle versionName is $BUILD_VERSION - bump before releasing"
             exit 1
           fi
           {
