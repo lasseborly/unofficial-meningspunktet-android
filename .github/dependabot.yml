@@ -1,18 +1,20 @@
 version: 2
 
+# Monthly cadence, one grouped PR per ecosystem. Dependabot cannot combine
+# ecosystems into a single PR, so at most two PRs appear per month (one for
+# GitHub Actions, one for Gradle). Renovate is the only option that can put both
+# into one PR; this file deliberately stays on Dependabot.
 updates:
-  # Keep the SHA-pinned actions in .github/workflows current. A bump PR rewrites
-  # the pin and the version comment; review it like any code change.
   - package-ecosystem: github-actions
     directory: /
-    # init and analyze must run the same github/codeql-action version; separate
-    # PRs produce a mixed-version workflow that fails at runtime.
-    groups:
-      codeql-action:
-        patterns:
-          - "github/codeql-action*"
     schedule:
-      interval: weekly
+      interval: monthly
+    groups:
+      # Every action bump in one PR. Grouping also keeps the CodeQL init and
+      # analyze steps on the same version, which they must be to run at all.
+      actions:
+        patterns:
+          - "*"
 
   # AGP / CycloneDX plugin in android/build.gradle and the AndroidX versions in
   # android/variables.gradle. The app ships only the AndroidX/Kotlin runtime, so
@@ -20,4 +22,8 @@ updates:
   - package-ecosystem: gradle
     directory: /android
     schedule:
-      interval: weekly
+      interval: monthly
+    groups:
+      gradle:
+        patterns:
+          - "*"
