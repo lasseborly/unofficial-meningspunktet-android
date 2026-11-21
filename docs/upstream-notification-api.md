@@ -32,14 +32,45 @@ flowchart LR
 
 | Component | Language | Role | Grows by |
 |---|---|---|---|
-| API | PHP (Laravel) | catch-up endpoint, token management, existing website | adding nodes behind the LB |
-| Outbox relay | Go or PHP CLI | publishes outbox rows to MQTT topics | adding workers |
-| Broker | EMQX (or Mosquitto/VerneMQ) | holds device connections, queues per session, fans out | adding broker nodes behind an LB |
+| API | PHP (Laravel) | catch-up endpoint, token management, existing website | adding pods behind the Service |
+| Outbox relay | Go or PHP CLI | publishes outbox rows to MQTT topics | adding worker replicas |
+| Broker | EMQX (or Mosquitto/VerneMQ) | holds device connections, queues per session, fans out | adding broker replicas/pods behind a Service |
 | Redis | Redis | unread counters, auth cache, per-user hot feed | primary + replica |
 | MySQL | MySQL | source of truth for content | read replicas; hot set in Redis |
 
 No custom gateway is written. The broker is the connection tier, the fan-out tier
 and the bus in one product.
+
+### If Meningspunktet runs on Kubernetes
+
+Nothing in the architecture changes — the tiers above map to the usual objects —
+but three MQTT-specific properties change how it must be deployed:
+
+- **Long-lived connections need special handling.** Standard Service
+  load-balancing (iptables/IPVS) does not drain gracefully: killing a pod drops
+  every session on it. Options, in order of fit:
+  1. a Service with `internalTrafficPolicy`/`externalTrafficPolicy: Local` and
+     readiness gates, letting the broker's own cluster routing rebalance;
+  2. a dedicated TCP (L4) load balancer per broker pod (one Service per pod via
+     headless Service + stable pod DNS), so drain means "stop new connections on
+     that pod";
+  3. an ingress that supports connection draining (Envoy/Traefik with long idle
+     timeouts, ideally HTTP/3 at the edge for mobile handoff).
+- **StatefulSet, not Deployment, for the broker.** EMQX in particular expects
+  stable identity and per-pod storage (`storage: persistent` for sessions and
+  retained messages); run it with a headless Service and pod management policy
+  that lets the cluster rebalance after pod loss. Capacity numbers in the
+  hardware table below are per **pod**, not per node.
+- **Host-level kernel tuning moves to the pod spec.** `nofile`, `somaxconn`,
+  SYN backlog and conntrack limits must be set on the *node* (DaemonSet or image
+  defaults), not just the container; a pod inherits the node's stack.
+
+The one structural caveat: **a broker pod holds sockets, so it cannot be treated
+like a normal stateless pod.** Scaling down a StatefulSet or evicting a node
+under load breaks sessions on that pod; clients reconnect (D7) and lose nothing
+the catch-up API can't restore, but the runbook (M6) must include
+`kubectl drain`/PDB planning so a node maintenance event does not look like an
+outage to users.
 
 ## Design decisions
 
@@ -156,7 +187,8 @@ items in one request; repeating the request returns `304` without a DB query.
       consistent with D2
 - [ ] JWT auth: client connects with the API-minted token; ACL restricts
       subscribe to its own `user/<id>` prefix, publish to `internal/` only
-- [ ] N broker nodes behind an L4 load balancer with long idle timeouts
+- [ ] N broker replicas (StatefulSet, see the Kubernetes note in Architecture)
+      behind a Service with per-pod addressing or an L4 edge with draining
 - [ ] Broker monitoring: sessions, subscriptions, queue depth, message expiry
 
 **Done when:** end-to-end (Laravel write → frame on device) < 1 s; killing a
@@ -230,10 +262,10 @@ reads; assumes ~10 % of devices in fallback polling at any time):
 For context, a fixed 60 s poll would be 1,700 / 16,700 / 83,000 req/s. 304-only
 responses cost no database query.
 
-Cost order of magnitude: one broker VM at 100k; ~€800–1,500/month at 5M on
-commodity VPS (the broker replaces both the gateway fleet and the NATS cluster of
-the SSE design, at ~3× the connection density). Heartbeats at 5M are ~0.2 MB/s;
-handshake peaks add a few hundred Mbit/s.
+Cost order of magnitude: one small broker node/pod at 100k; ~€800–1,500/month at
+5M on commodity infrastructure (the broker replaces both the gateway fleet and
+the NATS cluster of the SSE design, at ~3× the connection density). Heartbeats at
+5M are ~0.2 MB/s; handshake peaks add a few hundred Mbit/s.
 
 ## Degraded modes
 
