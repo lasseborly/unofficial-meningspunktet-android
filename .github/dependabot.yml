@@ -1,0 +1,17 @@
+version: 2
+
+updates:
+  # Keep the SHA-pinned actions in .github/workflows current. A bump PR rewrites
+  # the pin and the version comment; review it like any code change.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # AGP / CycloneDX plugin in android/build.gradle and the AndroidX versions in
+  # android/variables.gradle. The app ships only the AndroidX/Kotlin runtime, so
+  # security fixes there matter most.
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: weekly
