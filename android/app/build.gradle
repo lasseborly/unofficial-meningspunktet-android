@@ -48,3 +48,12 @@ dependencies {
     implementation "androidx.activity:activity:$androidxActivityVersion"
     implementation "androidx.core:core:$androidxCoreVersion"
 }
+
+// activity/lifecycle pull in androidx.profileinstaller, which contributes only a
+// manifest receiver (ProfileInstallReceiver, exported behind DUMP) and an
+// androidx.startup provider that write baseline profiles. No class here references
+// it, so drop it (and startup-runtime, which only it requires): on Android 12+
+// the platform installs profiles at install time anyway.
+configurations.configureEach {
+    exclude group: "androidx.profileinstaller", module: "profileinstaller"
+}
