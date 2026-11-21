@@ -37,10 +37,11 @@ jobs:
       - name: Resolve tag and validate versionName agreement
         env:
           INPUT_TAG: ${{ inputs.tag }}
+          INPUT_BRANCH: ${{ inputs.branch }}
         run: |
           TAG="${INPUT_TAG:-$GITHUB_REF_NAME}"
-          if [ -z "$INPUT_TAG" ] && [ -n "${{ inputs.branch }}" ]; then
-            TAG="v${{ inputs.branch#release/ }}"
+          if [ -z "$INPUT_TAG" ] && [ -n "$INPUT_BRANCH" ]; then
+            TAG="v${INPUT_BRANCH#release/}"
           fi
           if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
             echo "::error::Tag '$TAG' is not a release tag (expected vX.Y.Z or vX.Y.Z-prerelease, e.g. v1.0.1, v1.0.0-rc.0)"
