@@ -28,6 +28,12 @@ Alternative: the site as a browser PWA - cheaper on battery, but Web Push relays
 through the browser vendor's push service (FCM on Chrome, Mozilla's on Firefox),
 the servers this app avoids.
 
+Three additive changes on the Meningspunktet side - a stable JSON feed, revocable
+per-device tokens, and a server-sent events stream - would make this polling
+cheaper, less brittle, and usable by other clients. They are written up for the
+site's developers in
+[docs/upstream-notification-api.md](docs/upstream-notification-api.md).
+
 ## License
 
 EUPL v1.2 or later - see [LICENSE](LICENSE). Copyright 2026 Lasse Borly Grønbæk.
