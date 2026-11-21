@@ -13,6 +13,10 @@ build provenance. Verify downloads against the release-key fingerprint
 (`c0e9e78bf3cceccac0358e3173e05c211dad2e588b70d843fce3e2e537216e93`) - see
 [SECURITY.md](SECURITY.md).
 
+## [Unreleased]
+
+Nothing yet.
+
 ## [1.4.1] - 2026-11-21
 
 ### Fixed
@@ -29,10 +33,6 @@ build provenance. Verify downloads against the release-key fingerprint
 ### Added
 
 - Pull-to-refresh: swiping down anywhere on the page reloads it.
-
-## [Unreleased]
-
-Nothing yet.
 
 ## [1.3.0] - 2026-11-21
 
