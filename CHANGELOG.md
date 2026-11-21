@@ -17,6 +17,40 @@ build provenance. Verify downloads against the release-key fingerprint
 
 Nothing yet.
 
+## [1.3.0] - 2026-11-21
+
+### Added
+
+- Dependency lockfiles (`gradle.lockfile`, `buildscript-gradle.lockfile`)
+  pin every resolved version, direct and transitive, for both debug and
+  release configurations; a drifted or shifted version now fails the build
+  instead of silently resolving. Dependabot update PRs therefore show the
+  exact version change they make.
+- A weekly dependency-graph submission job, so Dependabot's CVE alerts are
+  computed from the app's real resolved classpath (and secret scanning plus
+  push protection are enabled on the repository).
+
+### Changed
+
+- Android Gradle plugin 9.5.1 -> 9.5.2, androidx.activity 1.11.0 -> 1.13.0,
+  androidx.core 1.17.0 -> 1.19.1, compileSdk 36 -> 37.
+- Buildscript transitive dependencies forced above the versions AGP pins
+  (BouncyCastle 1.87, Guava 33.7.2, jose4j 0.9.6, jdom2 2.0.6.1, Kotlin
+  Gradle plugin 2.4.21). These run on the build machine only - the shipped
+  APK's runtime classpath scans clean against the OSV database. The pinned
+  build.gradle overrides stay in place: even AGP 9.6.0-alpha05 still pins
+  the vulnerable versions, so they are load-bearing until a newer AGP ships
+  fixed transitives.
+- CodeQL's autobuild mode is unusable in this project (its Java detection
+  forces a Java 17 daemon that AGP 9.5 lint rejects), so the CodeQL
+  workflow builds with the same explicit `assembleRelease` step the release
+  workflow uses.
+
+### Fixed
+
+- Lint's `MissingPermission` error on the poller's `notify()` is now fixed
+  with an `areNotificationsEnabled()` guard instead of suppression.
+
 ## [1.2.0] - 2026-11-21
 
 ### Security
@@ -115,7 +149,8 @@ Initial prerelease. App id `dk.meningspunktet.unofficial.app`, signed with the
 self-sideload release key (tags are write-once; every later release must keep
 the same signer fingerprint).
 
-[Unreleased]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.0.0-rc.1...v1.0.0
