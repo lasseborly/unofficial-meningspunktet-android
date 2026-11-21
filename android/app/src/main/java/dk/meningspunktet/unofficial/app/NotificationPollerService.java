@@ -63,6 +63,10 @@ public class NotificationPollerService extends Service {
     private static final long IDLE_INTERVAL_MS = 2 * 60_000L;
     private static final int MAX_NOTIFY_PER_TICK = 8;
     private static final int SEEN_CAP = 200;
+    /** Cap on any buffered response/avatar: the service shares the UI process, so
+     *  an oversized body would OOM the Activity too. */
+    private static final int MAX_BODY_CHARS = 4 * 1024 * 1024;
+    private static final int MAX_AVATAR_BYTES = 4 * 1024 * 1024;
 
     private static final String CHANNEL_SERVICE = "mp_service";
     private static final String CHANNEL_ALERTS = "mp_alerts";
@@ -80,6 +84,8 @@ public class NotificationPollerService extends Service {
     private int consecutiveUnauth = 0;
     private int consecutiveFailures = 0;
     private boolean loggedShape = false;
+    /** Verbose logs dump message content; keep them out of release logcat. */
+    private boolean debugBuild;
     /** Last app version the server accepted; refreshed from the 409's X-Inertia-Version header. */
     private volatile String inertiaVersion = null;
     /** Own user id (props.auth.user.id), needed to pick the counterpart's avatar in DMs. */
@@ -311,6 +317,9 @@ public class NotificationPollerService extends Service {
             int n;
             while ((n = r.read(buf)) > 0) {
                 sb.append(buf, 0, n);
+                if (sb.length() > MAX_BODY_CHARS) {
+                    throw new Exception("response too large (> " + MAX_BODY_CHARS + " chars)");
+                }
             }
         }
         return sb.toString();
@@ -509,7 +518,7 @@ public class NotificationPollerService extends Service {
         }
         if (direct != null) {
             notifKey = "notifications";
-            if (direct.length() > 0 && !loggedShape) {
+            if (debugBuild && direct.length() > 0 && !loggedShape) {
                 JSONObject first = direct.optJSONObject(0);
                 Log.i(TAG, "item0: " + (first != null ? first.toString() : String.valueOf(direct.opt(0))));
             }
@@ -817,6 +826,10 @@ public class NotificationPollerService extends Service {
                     byte[] buf = new byte[16384];
                     int n;
                     while ((n = in.read(buf)) > 0) {
+                        if (bos.size() + n > MAX_AVATAR_BYTES) {
+                            Log.w(TAG, "avatar too large; skipping");
+                            return null;
+                        }
                         bos.write(buf, 0, n);
                     }
                     raw = bos.toByteArray();
@@ -849,7 +862,7 @@ public class NotificationPollerService extends Service {
         String title = pickOrDefault(item, "Meningspunktet", "title", "subject", "message");
         String body = pickOrDefault(item, "", "body", "description", "text");
         String url = itemUrl(item);
-        Log.i(TAG, "notify id=" + id + " url=" + url);
+        Log.i(TAG, debugBuild ? "notify id=" + id + " url=" + url : "notify id=" + id);
         try {
             int reqCode = 1000 + Math.abs(id.hashCode() % 100000);
             Intent tap = new Intent(this, MainActivity.class)
