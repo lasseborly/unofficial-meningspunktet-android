@@ -34,6 +34,21 @@ The API stays the source of truth; the stream is only a wake-up. That is what
 makes disconnects harmless: on every (re)connect the client asks for everything
 since its cursor.
 
+**Scale-out is linear and needs no redesign at any point up to 5M installs.**
+Every tier grows by adding nodes; nothing is resharded, re-partitioned or moved:
+
+- **Gateway**: stateless; new nodes go behind the load balancer and are done.
+- **NATS**: a fixed 3-node cluster; interest routing picks up new gateway nodes
+  with zero configuration.
+- **API (Laravel)**: stateless behind the same load balancer. It serves the
+  catch-up requests and the polling fallback, and carries real notification
+  traffic — see "Notification traffic PHP still sees" under Scale.
+- **Redis**: one primary plus a replica at every tier listed here; counters,
+  presence, the auth cache and the per-user hot feed.
+- **MySQL**: reads scale with read replicas and a Redis hot set; writes
+  (creating notifications and messages) are the site's existing workload and are
+  not increased by this design.
+
 ## What to build
 
 ### 1. Catch-up API (the contract that matters)
@@ -188,6 +203,23 @@ For comparison, fixed 60 s polling at 5M devices is ~83k req/s for the
 notification feed alone (~167k with conversations), which is on the order of a
 thousand cores on classic PHP-FPM — the number this proposal removes.
 
+**Notification traffic PHP still sees.** The stream removes the per-minute wake-up,
+not the reads: every connect/reconnect is one catch-up request, and devices with
+no held socket poll on the adaptive fallback. Peak is bounded by concurrent
+connects, and steady state by how many devices fall back:
+
+| Source | 100k installs | 1M installs | 5M installs |
+|---|---|---|---|
+| Reconnects → catch-up (15–30 min socket lifetime) | 55–110 req/s | 550–1,100 req/s | 3,000–6,000 req/s |
+| Fallback polling (10 % of devices offline, 5 min interval) | ~33 req/s | ~333 req/s | ~1,700 req/s |
+| Total API load | <200 req/s | <1,500 req/s | <8,000 req/s |
+
+For context: the same traffic at a fixed 60 s poll would be 1,700 / 16,700 /
+83,000 req/s. The 304-only path (counter unchanged in Redis) costs no database
+query, and Laravel behind the load balancer scales horizontally like any
+stateless tier; at 5M installs this is a double-digit node count at ordinary
+request sizes, sized the same way the website itself is sized.
+
 The cost that remains is operational: connection churn dominates CPU, deploys must
 drain connections gracefully, and the fleet must be monitored. That is the bill
 FCM currently absorbs.
@@ -203,11 +235,17 @@ connection lifetime, 1–2 ms per handshake.
 | NATS (core, 3 nodes) | 3 × (1 vCPU, 2 GB) | 3 × (2 vCPU, 4 GB) | 3 × (4 vCPU, 8 GB) |
 | Redis + replica | 2 × (1 vCPU, 2 GB) | 2 × (2 vCPU, 4 GB) | 2 × (4 vCPU, 8 GB) |
 | Load balancer | managed / pass-through | managed | managed or 2 × HAProxy |
-| Laravel + DB | unchanged | unchanged + outbox relay | unchanged + outbox relay |
+| API (Laravel + PHP-FPM) | 2 × (4 vCPU, 8 GB) | 6–10 × (4 vCPU, 8 GB) | 15–25 × (8 vCPU, 16 GB) |
+| MySQL | existing + 1 read replica | 1 primary + 2–3 replicas | primary + read replicas, hot set in Redis |
+| Outbox relay | 1 × (1 vCPU, 1 GB) | 1 × (2 vCPU, 2 GB) | 2 × (2 vCPU, 4 GB) |
 
 - The gateway is memory- and connection-bound: 100k sockets ≈ 2.5 GB, 5M ≈ 125 GB,
   roughly 200k sockets per 16 GB node. CPU is dominated by handshakes (3–6k/s at
   5M ≈ 5–10 cores fleet-wide), not by messages.
+- API nodes serve catch-up + fallback + the existing website: ~1,000 req/s per
+  4 vCPU node at ordinary Laravel request costs, so the 5M column is a
+  double-digit node count; 304 responses (counter unchanged in Redis) bypass the
+  database entirely.
 - Hit kernel limits before hardware: `nofile`, `somaxconn`, SYN backlog, port
   range, conntrack; long idle timeout on the LB; terminate TLS on the gateway.
 - Do not size for the thundering herd: 5M reconnects inside 30 s is ~167k
