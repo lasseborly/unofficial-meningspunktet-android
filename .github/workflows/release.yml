@@ -106,17 +106,25 @@ jobs:
         run: |
           mv android/app/build/outputs/apk/release/app-release.apk \
              "unofficial-meningspunktet_${VERSION}.apk"
-          # Stable filename so /releases/latest/download/... always resolves.
-          cp "unofficial-meningspunktet_${VERSION}.apk" \
-             unofficial-meningspunktet-latest.apk
+          # Stable releases also get a stable filename so
+          # /releases/latest/download/unofficial-meningspunktet-latest.apk resolves.
+          # Prereleases (rc/alpha/beta) must not carry it: "latest" means stable.
+          ASSETS=("unofficial-meningspunktet_${VERSION}.apk")
+          PRERELEASE=()
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE=(--prerelease)
+          else
+            cp "unofficial-meningspunktet_${VERSION}.apk" \
+               unofficial-meningspunktet-latest.apk
+            ASSETS+=(unofficial-meningspunktet-latest.apk)
+          fi
           # CycloneDX SBOM (JSON) of everything that ships in the APK.
           mv android/build/reports/cyclonedx/bom.json \
              "unofficial-meningspunktet_${VERSION}-sbom.json"
           # Transit-integrity checksums for mirrors and download verification.
           # Authorship is proven by the APK signature itself (apksigner verify
           # --print-certs must show the release key), not by this file.
-          sha256sum "unofficial-meningspunktet_${VERSION}.apk" \
-                    unofficial-meningspunktet-latest.apk \
+          sha256sum "${ASSETS[@]}" \
                     "unofficial-meningspunktet_${VERSION}-sbom.json" > SHA256SUMS
           {
             echo "Sideload the APK and verify it:"
@@ -129,15 +137,10 @@ jobs:
             echo
             echo "Verify signature: apksigner verify --print-certs unofficial-meningspunktet_${VERSION}.apk"
           } > notes.md
-          # rc/alpha/beta tags publish as GitHub prereleases so /releases/latest/
-          # keeps resolving to the newest stable version.
-          PRERELEASE=()
-          if [[ "$VERSION" == *-* ]]; then PRERELEASE=(--prerelease); fi
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file notes.md \
             --verify-tag "${PRERELEASE[@]}" \
-            "unofficial-meningspunktet_${VERSION}.apk" \
-            unofficial-meningspunktet-latest.apk \
+            "${ASSETS[@]}" \
             "unofficial-meningspunktet_${VERSION}-sbom.json" \
             SHA256SUMS

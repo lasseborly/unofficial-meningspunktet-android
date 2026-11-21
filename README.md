@@ -9,7 +9,8 @@ cookies and CORS behave first-party) plus native notifications. App id:
 ## Download
 
 **[unofficial-meningspunktet-latest.apk](https://github.com/lasseborly/unofficial-meningspunktet-android/releases/latest/download/unofficial-meningspunktet-latest.apk)**
-- always the newest release. Copy it to the phone, open it, allow "install from
+- always the newest stable release (prereleases do not carry this alias). Copy it
+to the phone, open it, allow "install from
 unknown sources". Each release page also lists `SHA256SUMS` and the release-key
 fingerprint so you can verify the download (see the release notes). Updates
 install straight over older releases as long as the signer fingerprint matches.
