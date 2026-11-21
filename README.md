@@ -29,8 +29,8 @@ Alternative: the site as a browser PWA - cheaper on battery, but Web Push relays
 through the browser vendor's push service (FCM on Chrome, Mozilla's on Firefox),
 the servers this app avoids.
 
-The one change on the Meningspunktet side that would replace this polling - a
-server-sent events push path fed by NATS, plus a stable catch-up API - is written
+The one change on the Meningspunktet side that would replace this polling - an
+MQTT push path plus a stable catch-up API - is written
 up for the site's developers in
 [docs/upstream-notification-api.md](docs/upstream-notification-api.md).
 
