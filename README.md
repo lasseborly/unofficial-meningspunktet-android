@@ -41,6 +41,10 @@ Covers the source code only; the Meningspunktet name/logo/artwork in `assets/`
 and the icons remain Meningspunktet's property, used only to identify the
 unofficial app against the real site.
 
+## Release history
+
+Notable changes per release: [CHANGELOG.md](CHANGELOG.md).
+
 ## Security
 
 Report privately per [SECURITY.md](SECURITY.md).
