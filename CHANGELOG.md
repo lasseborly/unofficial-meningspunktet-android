@@ -17,6 +17,14 @@ build provenance. Verify downloads against the release-key fingerprint
 
 Nothing yet.
 
+## [1.4.3] - 2026-11-21
+
+### Changed
+
+- Release builds are now minified with R8: the APK shrinks from
+  ~2.2 MiB to ~0.3 MiB. No app behavior changes; the site loads exactly
+  as before (verified on an emulator).
+
 ## [1.4.2] - 2026-11-21
 
 ### Fixed

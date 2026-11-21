@@ -13,8 +13,8 @@ android {
         applicationId "dk.meningspunktet.unofficial.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 9
-        versionName "1.4.2"
+        versionCode 10
+        versionName "1.4.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -33,7 +33,7 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
             // With keystore.properties absent (F-Droid builds, clean checkouts)
             // leave the release type unsigned -> app-release-unsigned.apk.
             if (keystorePropertiesFile.exists()) {
