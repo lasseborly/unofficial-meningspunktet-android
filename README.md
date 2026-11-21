@@ -19,8 +19,9 @@ install straight over older releases as long as the signer fingerprint matches.
 
 No FCM, APNs, or Mozilla Push - no Google/Apple/Mozilla server ever sees your
 Meningspunktet activity. A foreground service polls the site's own endpoints
-(`/notifications`, `/conversations/load-page`) every 60 s with the session cookie
-(`NotificationPollerService.java`). The cost is battery: per-minute wake-ups burn
+(`/notifications`, `/conversations/load-page`) with the session cookie
+(`NotificationPollerService.java`): every 60 s while the app is open, every
+5 minutes in the background. The cost is battery: periodic wake-ups burn
 more than OS push. The gain: no third-party servers in the path, and it works
 where FCM apps deliver nothing - GrapheneOS, which ships no Google Play services.
 

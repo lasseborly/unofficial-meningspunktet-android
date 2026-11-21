@@ -57,7 +57,10 @@ public class NotificationPollerService extends Service {
     private static final String POLL_URL = "https://meningspunktet.dk/notifications";
     private static final String CONVERSATIONS_URL = "https://meningspunktet.dk/conversations/load-page?conversationsPage=1";
     private static final String COOKIE_URL = "https://meningspunktet.dk";
-    private static final long POLL_INTERVAL_MS = 60_000L;
+    /** Foreground: the user is looking at the app; notifications are suppressed anyway. */
+    private static final long FOREGROUND_INTERVAL_MS = 60_000L;
+    /** Background: 5 minutes keeps delivery reasonable without a wake-up every minute. */
+    private static final long BACKGROUND_INTERVAL_MS = 5 * 60_000L;
     private static final long BACKOFF_BASE_MS = 5 * 60_000L;
     private static final long BACKOFF_CAP_MS = 15 * 60_000L;
     private static final long IDLE_INTERVAL_MS = 2 * 60_000L;
@@ -172,7 +175,7 @@ public class NotificationPollerService extends Service {
             fetchAndDiff(cookie);
             consecutiveFailures = 0;
             work.removeCallbacks(pollRunnable);
-            work.postDelayed(pollRunnable, POLL_INTERVAL_MS);
+            work.postDelayed(pollRunnable, pollIntervalMs());
         } catch (UnauthenticatedException e) {
             consecutiveUnauth++;
             Log.w(TAG, "unauth x" + consecutiveUnauth);
@@ -189,6 +192,11 @@ public class NotificationPollerService extends Service {
             Log.w(TAG, "poll failed: " + e);
             scheduleBackoff();
         }
+    }
+
+    /** Adaptive interval: fast while the UI is visible, slow while it is not. */
+    private long pollIntervalMs() {
+        return appInForeground ? FOREGROUND_INTERVAL_MS : BACKGROUND_INTERVAL_MS;
     }
 
     private void scheduleBackoff() {
@@ -964,7 +972,8 @@ public class NotificationPollerService extends Service {
             CHANNEL_SERVICE, "Meningspunktet baggrund", NotificationManager.IMPORTANCE_LOW);
         service.setShowBadge(false);
         service.setDescription("Holder øje med nye notifikationer ved at spørge meningspunktet.dk "
-            + "direkte hvert minut - helt uden Google-, Apple- eller Mozilla-servere. "
+            + "direkte hvert minut, når appen er åben, og hvert femte minut i baggrunden - helt "
+            + "uden Google-, Apple- eller Mozilla-servere. "
             + "Det koster lidt ekstra batteri sammenlignet med almindelig push.");
         NotificationChannel alerts = new NotificationChannel(
             CHANNEL_ALERTS, "Notifikationer", NotificationManager.IMPORTANCE_DEFAULT);
