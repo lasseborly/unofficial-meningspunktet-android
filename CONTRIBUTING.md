@@ -29,6 +29,22 @@ send the patch inside an issue instead of as a PR.
 Do not open a public issue for vulnerabilities. Report them privately
 per [SECURITY.md](SECURITY.md).
 
+## Releases: the maintainer cuts them
+
+Releases are git tags (`vX.Y.Z`), and a pushed tag is write-once: any fix
+after it is a new patch release, never a re-tag. A release cut therefore
+always, in this order on `main`:
+
+1. An entry in [CHANGELOG.md](CHANGELOG.md) describing what the release
+   contains (Keep a Changelog format; derived from the commits since the
+   previous tag - outcomes, not process).
+2. The version bump in `android/app/build.gradle` (`versionName` exactly the
+   tag without the `v`, `versionCode` +1).
+3. The `chore(release): X.Y.Z` commit, then the tag.
+
+The changelog entry ships in the same push as the bump: a release without one
+is a mistake to be caught before tagging, not a todo for afterwards.
+
 ## Direction is not up for vote
 
 Feature requests are welcome as discussion, but "will you merge X" has

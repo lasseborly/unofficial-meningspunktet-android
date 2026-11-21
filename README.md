@@ -43,7 +43,9 @@ unofficial app against the real site.
 
 ## Release history
 
-Notable changes per release: [CHANGELOG.md](CHANGELOG.md).
+Notable changes per release: [CHANGELOG.md](CHANGELOG.md). Every release cut
+adds its CHANGELOG.md entry in the same push as the version bump - see the
+release section of [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Security
 
