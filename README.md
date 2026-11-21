@@ -15,7 +15,7 @@ unknown sources". Each release page also lists `SHA256SUMS` and the release-key
 fingerprint so you can verify the download (see the release notes). Updates
 install straight over older releases as long as the signer fingerprint matches.
 
-## Notifications: direct polling instead of push
+## Why? Notifications: direct polling instead of push
 
 No FCM, APNs, or Mozilla Push - no Google/Apple/Mozilla server ever sees your
 Meningspunktet activity. A foreground service polls the site's own endpoints
