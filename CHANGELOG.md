@@ -17,6 +17,16 @@ build provenance. Verify downloads against the release-key fingerprint
 
 Nothing yet.
 
+## [1.4.2] - 2026-11-21
+
+### Fixed
+
+- Adaptive launcher icon: the foreground was rendered at the logo size
+  instead of the full 108dp canvas, so launchers scaled it up and the
+  circular mask cropped the outer arcs - the icon looked zoomed and its
+  colors off next to the site logo. The logo's exact colors were never
+  altered; the canvas is now the correct 108dp in every density.
+
 ## [1.4.1] - 2026-11-21
 
 ### Fixed
@@ -166,7 +176,8 @@ Initial prerelease. App id `dk.meningspunktet.unofficial.app`, signed with the
 self-sideload release key (tags are write-once; every later release must keep
 the same signer fingerprint).
 
-[Unreleased]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.2.0...v1.3.0
