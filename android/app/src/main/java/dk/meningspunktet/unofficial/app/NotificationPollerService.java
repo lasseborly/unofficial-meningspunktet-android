@@ -262,7 +262,10 @@ public class NotificationPollerService extends Service {
                         }
                     } catch (Exception ignored) {
                     }
-                    throw new Exception("http " + code + (err.isEmpty() ? "" : " body=" + err));
+                    // Server error bodies can carry framework debug output; only
+                    // log them on debuggable builds (same gate as message dumps).
+                    throw new Exception("http " + code
+                        + (err.isEmpty() || !debugBuild ? "" : " body=" + err));
                 }
                 String json = readBody(conn.getInputStream());
                 JSONObject root = new JSONObject(json);
@@ -415,7 +418,7 @@ public class NotificationPollerService extends Service {
                 } catch (Exception ignored) {
                 }
                 throw new Exception("post http " + code + " to " + url
-                    + (err.isEmpty() ? "" : " body=" + err));
+                    + (err.isEmpty() || !debugBuild ? "" : " body=" + err));
             }
             return new JSONObject(readBody(conn.getInputStream()));
         } finally {
@@ -939,7 +942,7 @@ public class NotificationPollerService extends Service {
                 b.setLargeIcon(avatar);
             }
             Notification n = b.build();
-            NotificationManagerCompat.from(this).notify(id.hashCode(), n);
+            NotificationManagerCompat.from(this).notify(id.hashCode(), n); // lint: POST_NOTIFICATIONS may be denied; NotificationManagerCompat then no-ops, it does not throw
         } catch (Exception e) {
             Log.w(TAG, "notify failed: " + e);
         }

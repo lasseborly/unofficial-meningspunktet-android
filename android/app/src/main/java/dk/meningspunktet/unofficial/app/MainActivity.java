@@ -23,6 +23,7 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -32,6 +33,8 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import java.io.File;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Locale;
 
 /**
@@ -48,6 +51,8 @@ public class MainActivity extends ComponentActivity {
 
     private static final String SITE_URL = "https://meningspunktet.dk";
     private static final String SITE_HOST = "meningspunktet.dk";
+    /** Bounded redirect walk when validating a download URL before it can carry cookies. */
+    private static final int MAX_REDIRECTS = 5;
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
@@ -193,12 +198,23 @@ public class MainActivity extends ComponentActivity {
                 if (fileName.isEmpty() || ".".equals(fileName) || "..".equals(fileName)) {
                     fileName = "download";
                 }
-                DownloadManager.Request req = new DownloadManager.Request(uri);
+                // DownloadManager follows redirects itself but still sends whatever
+                // headers we set, so a redirect could carry the session cookie to
+                // another host. Walk the chain ourselves (bounded); only enqueue if
+                // every hop stays on-site, then point DownloadManager at the resolved
+                // URL so it never needs to follow a cross-site hop. Anything else
+                // goes to the browser with no credentials attached.
+                String resolvedUrl = resolveWithinSite(uri);
+                if (resolvedUrl == null) {
+                    openExternally(url);
+                    return;
+                }
+                DownloadManager.Request req = new DownloadManager.Request(Uri.parse(resolvedUrl));
                 req.setTitle(fileName);
                 if (mimeType != null) {
                     req.setMimeType(mimeType);
                 }
-                String cookie = CookieManager.getInstance().getCookie(url);
+                String cookie = CookieManager.getInstance().getCookie(resolvedUrl);
                 if (cookie != null) {
                     req.addRequestHeader("Cookie", cookie);
                 }
@@ -259,6 +275,22 @@ public class MainActivity extends ComponentActivity {
     }
 
     @Override
+    protected void onDestroy() {
+        // Release the WebView's native peers (renderers, Chromium resources)
+        // instead of waiting for finalizers; a stale pending file-chooser
+        // callback must not receive a result for a dead WebView.
+        if (filePathCallback != null) {
+            filePathCallback.onReceiveValue(null);
+            filePathCallback = null;
+        }
+        if (webView != null) {
+            webView.destroy();
+            webView = null;
+        }
+        super.onDestroy();
+    }
+
+    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         String url = notificationUrlFrom(intent);
@@ -297,7 +329,16 @@ public class MainActivity extends ComponentActivity {
         return isSiteUrl(uri) ? uri.toString() : null;
     }
 
-    /** True only for https on meningspunktet.dk itself or one of its subdomains. */
+    /**
+     * True only for https on meningspunktet.dk itself or one of its subdomains.
+     *
+     * Trust assumption: we delegate to every *.meningspunktet.dk host because the
+     * site uses subdomains for its own infrastructure. If the operator ever lets
+     * third parties register subdomains (hosted-blogs style), tighten this to the
+     * exact hosts that legitimately serve app content - a user-registerable
+     * subdomain would otherwise be treated as first-party for navigation,
+     * downloads and intent extras.
+     */
     private static boolean isSiteUrl(Uri uri) {
         if (uri == null || !"https".equalsIgnoreCase(uri.getScheme())) {
             return false;
@@ -308,6 +349,50 @@ public class MainActivity extends ComponentActivity {
         }
         host = host.toLowerCase(Locale.ROOT);
         return host.equals(SITE_HOST) || host.endsWith("." + SITE_HOST);
+    }
+
+    /**
+     * Follows 3xx redirects with the request method preserved (GET; download
+     * URLs here are GET), bounded by {@link #MAX_REDIRECTS}. Returns the final
+     * URL if every hop is a site URL, or null when the chain leaves the site
+     * or any hop fails - callers must then not attach session credentials.
+     */
+    @Nullable
+    private static String resolveWithinSite(Uri start) {
+        String current = start.toString();
+        try {
+            for (int hop = 0; hop < MAX_REDIRECTS; hop++) {
+                if (!isSiteUrl(Uri.parse(current))) {
+                    return null;
+                }
+                HttpURLConnection conn =
+                    (HttpURLConnection) new URL(current).openConnection();
+                conn.setRequestMethod("GET");
+                conn.setInstanceFollowRedirects(false);
+                conn.setConnectTimeout(10_000);
+                conn.setReadTimeout(10_000);
+                // Just enough to get the redirect target; nothing meaningful
+                // is downloaded here.
+                conn.setRequestProperty("Range", "bytes=0-0");
+                try {
+                    int code = conn.getResponseCode();
+                    String location = conn.getHeaderField("Location");
+                    if (code >= 300 && code < 400 && location != null) {
+                        // java.net.URL resolves relative Locations against the
+                        // current URL (RFC 7231 relative references).
+                        current = new URL(new URL(current), location).toString();
+                        continue;
+                    }
+                    // 200/204/404/etc: no further redirect, chain stays on-site.
+                    return current;
+                } finally {
+                    conn.disconnect();
+                }
+            }
+            return null; // redirect loop / too many hops
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** Hands http(s)/mailto/tel URLs to the OS; ignores every other scheme. */

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Certificate pinning for the session cookie's targets (WebView + the
+     background poller + download redirect walks).
+
+     Pins are SPKI SHA-256, any-of semantics, so a routine Let's Encrypt leaf
+     renewal never breaks the app. The set expires 2028-09-01, the day before
+     the pinned YR1 intermediate's own expiry: after that Android falls back
+     to normal system CA validation instead of being bricked by a rotated
+     chain. Before that date a new pin set must be shipped (check
+     https://meningspunktet.dk 's chain, update the digests or extend the
+     date; openssl s_client -showcerts | openssl x509 -pubkey ... is the
+     recipe).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- System CAs; user-installed CAs are NOT trusted. -->
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- Pins must live in a domain-config, not base-config. -->
+    <domain-config>
+        <domain includeSubdomains="true">meningspunktet.dk</domain>
+        <pin-set expiration="2028-09-01">
+            <!-- ISRG Root X1 (root of trust for LE chains, in system store) -->
+            <pin digest="SHA-256">C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</pin>
+            <!-- ISRG Root YR (2024-2043 LE root, cross-signed by X1) -->
+            <pin digest="SHA-256">fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=</pin>
+            <!-- Let's Encrypt YR1 intermediate (current signer, valid to 2028) -->
+            <pin digest="SHA-256">LoMHBotttiDko50Gi13uXW71eIy7LAttI+rYT8wXF4w=</pin>
+            <!-- Leaf SPKI (informational; rotates every ~90 days) -->
+            <pin digest="SHA-256">fXtGw9AFDxHzG4sQa6uGAh5a8LF3Et568pT3mA26Maw=</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>
