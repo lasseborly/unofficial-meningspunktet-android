@@ -43,6 +43,10 @@ jobs:
 
       - name: Perform CodeQL Autobuild
         uses: github/codeql-action/autobuild@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        # Autobuild runs Gradle with its own JVM (runner default 17); AGP 9.5
+        # lint requires the daemon JVM to match the project's Java 21 target.
+        env:
+          JAVA_HOME: /usr/lib/jvm/temurin-21-jdk-amd64
 
       - name: Analyze
         uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
