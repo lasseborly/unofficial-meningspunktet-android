@@ -54,4 +54,5 @@ Report privately per [SECURITY.md](SECURITY.md).
 ## Credits
 
 99% of this app's code was written by **Qwen 3.8 Flash Next**, hosted by
-Alexandra Instituttet.
+Alexandra Instituttet. Later releases were built with **GLM 5.3 Flash** and
+**DeepSeek v4.1 Flash** from Lyceum.
