@@ -13,8 +13,8 @@ android {
         applicationId "dk.meningspunktet.unofficial.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "1.3.0"
+        versionCode 7
+        versionName "1.4.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -47,6 +47,7 @@ android {
 dependencies {
     implementation "androidx.activity:activity:$androidxActivityVersion"
     implementation "androidx.core:core:$androidxCoreVersion"
+    implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
 }
 
 // activity/lifecycle pull in androidx.profileinstaller, which contributes only a

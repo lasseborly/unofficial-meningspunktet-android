@@ -31,6 +31,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import java.io.File;
 import java.net.HttpURLConnection;
@@ -55,6 +56,7 @@ public class MainActivity extends ComponentActivity {
     private static final int MAX_REDIRECTS = 5;
 
     private WebView webView;
+    private SwipeRefreshLayout swipeRefresh;
     private ValueCallback<Uri[]> filePathCallback;
     private ActivityResultLauncher<Intent> fileChooser;
 
@@ -63,9 +65,20 @@ public class MainActivity extends ComponentActivity {
         super.onCreate(savedInstanceState);
 
         webView = new WebView(this);
+        // Pull-to-refresh: native SwipeRefreshLayout wrapping the WebView. The
+        // trigger offset keeps the spinner clear of the inset-padded top strip.
+        swipeRefresh = new SwipeRefreshLayout(this);
+        swipeRefresh.addView(webView,
+            new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+        swipeRefresh.setOnRefreshListener(() -> {
+            if (webView != null) {
+                webView.reload();
+            }
+        });
         FrameLayout container = new FrameLayout(this);
         container.setBackgroundColor(0xFF18181B);
-        container.addView(webView);
+        container.addView(swipeRefresh);
         setContentView(container);
         ViewCompat.setOnApplyWindowInsetsListener(container, (view, insets) -> {
             int types = WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout();
@@ -170,6 +183,9 @@ public class MainActivity extends ComponentActivity {
              */
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                if (swipeRefresh != null && swipeRefresh.isRefreshing()) {
+                    swipeRefresh.setRefreshing(false);
+                }
                 Uri uri = Uri.parse(url);
                 if (isSiteUrl(uri) || "about".equals(uri.getScheme())) {
                     return;

@@ -15,7 +15,9 @@ build provenance. Verify downloads against the release-key fingerprint
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Pull-to-refresh: swiping down anywhere on the page reloads it.
 
 ## [1.3.0] - 2026-11-21
 
