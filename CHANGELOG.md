@@ -13,7 +13,7 @@ build provenance. Verify downloads against the release-key fingerprint
 (`c0e9e78bf3cceccac0358e3173e05c211dad2e588b70d843fce3e2e537216e93`) - see
 [SECURITY.md](SECURITY.md).
 
-## [1.4.0-rc.0] - 2026-11-21
+## [1.4.0] - 2026-11-21
 
 ### Added
 
@@ -155,8 +155,8 @@ Initial prerelease. App id `dk.meningspunktet.unofficial.app`, signed with the
 self-sideload release key (tags are write-once; every later release must keep
 the same signer fingerprint).
 
-[Unreleased]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.4.0-rc.0...HEAD
-[1.4.0-rc.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.3.0...v1.4.0-rc.0
+[Unreleased]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/lasseborly/unofficial-meningspunktet-android/compare/v1.0.0...v1.1.0
