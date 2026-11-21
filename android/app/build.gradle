@@ -57,3 +57,9 @@ dependencies {
 configurations.configureEach {
     exclude group: "androidx.profileinstaller", module: "profileinstaller"
 }
+
+// Pin every resolved version (direct + transitive) in gradle.lockfile; see the
+// note in the root build.gradle.
+dependencyLocking {
+    lockAllConfigurations()
+}

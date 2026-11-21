@@ -26,6 +26,19 @@ apply from: "variables.gradle"
 // (aggregate over all projects; each project also gets cyclonedxDirectBom under
 // build/reports/cyclonedx-direct/). The release workflow publishes the JSON
 // aggregate as a release artifact.
+// Gradle dependency locking: gradle.lockfile pins resolved versions so builds
+// (and Dependabot's PRs) are reproducible and reviewable; a compromised
+// repository that starts publishing shifted versions fails the build instead
+// of being silently pulled. Locking is a project-level setting: the block in
+// app/build.gradle covers the app's dependency configurations, the one below
+// covers the buildscript classpath (AGP, CycloneDX plugin). Regenerate with
+// ./gradlew :app:dependencies --write-locks.
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
 apply plugin: 'org.cyclonedx.bom'
 
 allprojects {
